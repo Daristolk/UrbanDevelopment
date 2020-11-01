@@ -1,0 +1,197 @@
+---
+title: "Assignment_10_"
+author: "Dariusz Siergiejuk"
+date: "10/20/2020"
+output: html_document
+---
+
+```{r, echo = FALSE}
+library(tidyverse)
+library(tidytext)
+library(dplyr)
+library(textdata)
+```
+
+## Week 10 Assignment – Sentiment Analysis
+
+Assignment number 10 starting and obtaining the main example code from chapter 2 and working in an R Markdown document as directed.
+
+Re-create and analyze primary code from the textbook.
+
+Provide citation to text book, using a standard citation syntax like APA or MLA.
+
+```{r, echo = FALSE}
+library(tidytext)
+get_sentiments("afinn")
+```
+
+```{r, echo = FALSE}
+get_sentiments("bing")
+```
+
+```{r, echo = FALSE}
+get_sentiments("nrc")
+```
+
+```{r, echo = R}
+library(janeaustenr)
+library(dplyr)
+library(stringr)
+```
+
+
+```{r, echo = FALSE}
+if ("dplyr" %in% installed.packages()[, "Package"]){ 
+  cat("'dplyr' is installed.")
+} else {
+  install.packages("dplyr",dependencies=T)
+}
+library(dplyr)
+```
+```{r, echo = FALSE}
+if ("tidytext" %in% installed.packages()[, "Package"]){ 
+  cat("'tidytext' is installed.")
+} else {
+  install.packages("tidytext",dependencies=T)
+}
+library(tidytext)
+```
+
+
+```{r, echo = FALSE}
+library(stringr)
+
+
+tidy_books <- austen_books() %>%
+  group_by(book) %>%
+  mutate(
+    linenumber = row_number(),
+    chapter = cumsum(str_detect(text, regex("^chapter [\\divxlc]",
+      ignore_case = TRUE
+    )))
+  ) %>%
+  ungroup() %>%
+  unnest_tokens(word, text)
+
+nrc_joy <- get_sentiments("nrc") %>%
+  filter(sentiment == "joy")
+
+tidy_books %>%
+  filter(book == "Emma") %>%
+  inner_join(nrc_joy) %>%
+  count(word, sort = TRUE)
+
+## Joining, by = "word"
+```
+
+## Setting Up New Corpus
+
+The function called gutenberg_metadata from package called gutenbergr will be applied to check on the book ids.
+
+```{r, echo = FALSE}
+library(gutenbergr)
+gutenberg_metadata %>%
+  filter(title == "Crime and Punishment")
+```
+
+English version of Fyodor Dostoyevsky's Crime and Punishment, ID 2554
+
+
+```{r, echo = FALSE}
+crime_punishment <- gutenberg_download(2554)
+```
+```{r, echo = FALSE}
+glimpse(crime_punishment)
+```
+
+Cleaning Book
+
+```{r, echo = FALSE}
+tydying_crime_punishment <- crime_punishment %>%
+  slice(-c(1:102)) %>%
+  mutate(line_num = row_number(),
+         part = cumsum(str_detect(text, regex("^PART [\\divxlc]",
+                                                  ignore_case = TRUE)))) %>%  
+         group_by(part) %>%
+         mutate(chapter = cumsum(str_detect(text, regex("^CHAPTER [\\divxlc]",
+                                                          ignore_case = TRUE)))) %>% 
+         ungroup()
+
+glimpse(tydying_crime_punishment)
+```
+
+New column with each row displaying just one word.
+
+```{r, echo = FALSE}
+Book <- tydying_crime_punishment %>% 
+  unnest_tokens(word, text) %>%
+  mutate(word = str_replace(word, "_", ""))
+
+
+#deleting stop word
+Text_CP <- Book %>%
+  anti_join(stop_words, by = "word")
+```
+
+## Looking At Word Prevalence
+
+```{r, echo = FALSE}
+Text_CP%>%
+  count(word, sort = TRUE) %>%
+  top_n(10, n) %>%
+  ggplot(aes(x = fct_reorder(word, n), y = n, fill = word)) +
+  geom_col(show.legend = FALSE) +
+  scale_fill_viridis_d(option = "viridis") +
+  coord_flip() +
+  xlab(NULL) +
+  labs(title = "Crime & Punishment - Word Prevalence") +
+  theme_minimal()
+```
+
+The most prevalent word is Raskolnikov, not surmising here the main character.
+
+## Applying nrc
+
+```{r, echo = FALSE}
+Text_CP %>%
+  inner_join(get_sentiments("nrc")) %>%
+  count(index = line_num %/% 150, sentiment) %>% 
+  spread(sentiment, n, fill = 0) %>%
+  mutate(sentiment = positive - negative) %>%
+  ggplot(aes(x = index, sentiment)) +
+  geom_col(fill = "red", show.legend = FALSE) +
+  labs(title = "Sentiment Analysis ") +
+  theme_minimal()
+```
+
+The Crime and Punishment title aggregates prevalence of negativity as opposed to positivity.
+
+```{r, echo = FALSE}
+Text_CP %>%
+  inner_join(get_sentiments("nrc")) %>%
+  count(sentiment) %>%
+  mutate(total = sum(n),
+         prop = n / total) %>%
+  ggplot(aes(fct_reorder(sentiment, prop), y = prop, fill = sentiment)) +
+  geom_col(show.legend = FALSE) +
+  scale_fill_viridis_d(option = "viridis") +
+  xlab(NULL) +
+  ggtitle("Sentiment Analysis ") +
+  coord_flip() +
+  theme_minimal()
+```
+```{r, echo = FALSE}
+#tydying_crime_punishment %>%
+#  anti_join(stop_words) %>%
+#  count(word) %>%
+#  with(wordcloud(word, n, max.words = 100))
+```
+
+
+
+## Conclusion
+
+As mentioned in the Text Mining With R: A Tidy Approach, there is a variety of dictionaries to use when it comes to sentiment analysis in R. This accounts for performing various types of analysis with text and beyond. The most robust dictionaries heavily depend on the context of the specific issue and/or require to support both their strong and weak side of the analysis. Nonetheless the big picture of any particular examination remain the same. For Crime and Punishment I selected nrc since it provides a more adequate breakdown of sentiment, at that more useful for longer texts like this. The analysis might have been more fulfilling by employing Regular Expressions. This unfortunately is way beyond my skill set.
+
+
+End of File.
